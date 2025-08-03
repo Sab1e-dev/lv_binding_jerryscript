@@ -1044,8 +1044,6 @@ def generate_enum_binding(enums, macros=None, export_macros=None, blacklist_macr
     for enum in enums or []:
         if enum is None:
             continue
-        enum_name = enum.get('name')
-        lines.append(f"#if defined({enum_name})")
         for member in enum.get('members', []) or []:
             if member is None:
                 continue
@@ -1067,9 +1065,6 @@ def generate_enum_binding(enums, macros=None, export_macros=None, blacklist_macr
                 except (ValueError, TypeError) as e:
                     print(f"{Fore.YELLOW}[警告] 无法解析枚举值 {name}={value}: {e}{Style.RESET_ALL}")
                     continue
-        lines.append("#else")
-        lines.append(f'    #pragma "WARNING: Enum {enum_name} is not defined!"')
-        lines.append("#endif")
     
     if macros:
         # 特殊处理LV_SYMBOL_开头的宏（总是包含）
@@ -1098,7 +1093,7 @@ def generate_enum_binding(enums, macros=None, export_macros=None, blacklist_macr
                 lines.append(f"#ifdef {macro_name}")
                 lines.append(f'    jerry_object_set(global, jerry_string_sz("{macro_name}"), jerry_string_sz({macro_name}));')
                 lines.append("#else")
-                lines.append(f'    #pragma "WARNING: Macro {macro_name} is not defined"')
+                lines.append(f'    #pragma message("WARNING: Macro {macro_name} is not defined")')
                 lines.append("#endif")
                 continue
                 
@@ -1107,7 +1102,7 @@ def generate_enum_binding(enums, macros=None, export_macros=None, blacklist_macr
                 lines.append(f"#ifdef {macro_name}")
                 lines.append(f'    lvgl_binding_set_enum(global, "{macro_name}", {macro_name});')
                 lines.append("#else")
-                lines.append(f'    #pragma "WARNING: Macro {macro_name} is not defined"')
+                lines.append(f'    #pragma message("WARNING: Macro {macro_name} is not defined")')
                 lines.append("#endif")
             elif print_macro_info:
                 print(f"{Fore.BLUE}[跳过] 宏 {macro_name} 不在导出列表中{Style.RESET_ALL}")

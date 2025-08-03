@@ -7,8 +7,7 @@
  */
 
 #include "lv_bindings_misc.h"
-#include "appsys_core.h"
-#include "appsys_port.h"
+#include "lv_bindings.h"
 #include <stdlib.h>
 /********************************** 错误处理辅助函数 **********************************/
 static jerry_value_t throw_error(const char *message)
@@ -328,68 +327,67 @@ static void register_lvgl_fonts(void)
         jerry_object_set(fonts, jerry_string_sz(#name), font_obj);                            \
         jerry_value_free(font_obj);                                                           \
     } while (0);
-
-#if defined(lv_font_montserrat_8)
+#if LV_FONT_MONTSERRAT_8
     REGISTER_FONT(lv_font_montserrat_8);
 #endif
-#if defined(lv_font_montserrat_10)
+#if LV_FONT_MONTSERRAT_10
     REGISTER_FONT(lv_font_montserrat_10);
 #endif
-#if defined(lv_font_montserrat_12)
+#if LV_FONT_MONTSERRAT_12
     REGISTER_FONT(lv_font_montserrat_12);
 #endif
-#if defined(lv_font_montserrat_14)
+#if LV_FONT_MONTSERRAT_14
     REGISTER_FONT(lv_font_montserrat_14);
 #endif
-#if defined(lv_font_montserrat_16)
+#if LV_FONT_MONTSERRAT_16
     REGISTER_FONT(lv_font_montserrat_16);
 #endif
-#if defined(lv_font_montserrat_18)
+#if LV_FONT_MONTSERRAT_18
     REGISTER_FONT(lv_font_montserrat_18);
 #endif
-#if defined(lv_font_montserrat_20)
+#if LV_FONT_MONTSERRAT_20
     REGISTER_FONT(lv_font_montserrat_20);
 #endif
-#if defined(lv_font_montserrat_22)
+#if LV_FONT_MONTSERRAT_22
     REGISTER_FONT(lv_font_montserrat_22);
 #endif
-#if defined(lv_font_montserrat_24)
+#if LV_FONT_MONTSERRAT_24
     REGISTER_FONT(lv_font_montserrat_24);
 #endif
-#if defined(lv_font_montserrat_26)
+#if LV_FONT_MONTSERRAT_26
     REGISTER_FONT(lv_font_montserrat_26);
 #endif
-#if defined(lv_font_montserrat_28)
+#if LV_FONT_MONTSERRAT_28
     REGISTER_FONT(lv_font_montserrat_28);
 #endif
-#if defined(lv_font_montserrat_30)
+#if LV_FONT_MONTSERRAT_30
     REGISTER_FONT(lv_font_montserrat_30);
 #endif
-#if defined(lv_font_montserrat_32)
+#if LV_FONT_MONTSERRAT_32
     REGISTER_FONT(lv_font_montserrat_32);
 #endif
-#if defined(lv_font_montserrat_34)
+#if LV_FONT_MONTSERRAT_34
     REGISTER_FONT(lv_font_montserrat_34);
 #endif
-#if defined(lv_font_montserrat_36)
+#if LV_FONT_MONTSERRAT_36
     REGISTER_FONT(lv_font_montserrat_36);
 #endif
-#if defined(lv_font_montserrat_38)
+#if LV_FONT_MONTSERRAT_38
     REGISTER_FONT(lv_font_montserrat_38);
 #endif
-#if defined(lv_font_montserrat_40)
+#if LV_FONT_MONTSERRAT_40
     REGISTER_FONT(lv_font_montserrat_40);
 #endif
-#if defined(lv_font_montserrat_42)
+#if LV_FONT_MONTSERRAT_42
     REGISTER_FONT(lv_font_montserrat_42);
 #endif
-#if defined(lv_font_montserrat_44)
+#if LV_FONT_MONTSERRAT_44
     REGISTER_FONT(lv_font_montserrat_44);
 #endif
-#if defined(lv_font_montserrat_46)
+#if LV_FONT_MONTSERRAT_46
     REGISTER_FONT(lv_font_montserrat_46);
 #endif
-#if defined(lv_font_montserrat_48)
+#if LV_FONT_MONTSERRAT_48
     REGISTER_FONT(lv_font_montserrat_48);
 #endif
 
@@ -401,7 +399,7 @@ static void register_lvgl_fonts(void)
     jerry_value_free(global);
 }
 
-const AppSysFuncEntry lvgl_binding_special_funcs[] = {
+const LVBindingJerryscriptFuncEntry lvgl_binding_special_funcs[] = {
     {"lv_disp_get_scr_act", js_lv_disp_get_scr_act},
     {"lv_img_set_src", js_lv_img_set_src},
     {"lv_style_init", js_lv_style_init},
@@ -411,6 +409,6 @@ const AppSysFuncEntry lvgl_binding_special_funcs[] = {
 void lv_bindings_misc_init(void)
 {
     // 初始化函数
-    appsys_register_functions(lvgl_binding_special_funcs, sizeof(lvgl_binding_special_funcs) / sizeof(AppSysFuncEntry));
+    appsys_register_functions(lvgl_binding_special_funcs, sizeof(lvgl_binding_special_funcs) / sizeof(LVBindingJerryscriptFuncEntry));
     register_lvgl_fonts();
 }
