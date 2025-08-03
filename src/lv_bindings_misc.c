@@ -17,68 +17,87 @@ static jerry_value_t throw_error(const char *message)
 }
 
 /********************************** 函数系统 **********************************/
-// 解析 lv_color_t 参数
-lv_color_t js_to_lv_color(jerry_value_t js_color)
+// 辅助函数：将RGB值转换为lv_color_t
+static lv_color_t rgb_to_lv_color(uint8_t r, uint8_t g, uint8_t b)
 {
-    lv_color_t color = {0};
-
-    if (jerry_value_is_number(js_color))
-    {
-        uint32_t val = (uint32_t)jerry_value_as_number(js_color);
-#if LV_COLOR_DEPTH == 16
-        lv_color16_t color16;
-        color16.red = (val >> 19) & 0x1F;   // 5 bits
-        color16.green = (val >> 10) & 0x3F; // 6 bits
-        color16.blue = (val >> 3) & 0x1F;   // 5 bits
-        color = *(lv_color_t *)&color16;
-#else
-        color.red = (val >> 16) & 0xFF;
-        color.green = (val >> 8) & 0xFF;
-        color.blue = val & 0xFF;
-#endif
-        return color;
-    }
-
-    if (!jerry_value_is_object(js_color))
-    {
-        return color;
-    }
-
-    jerry_value_t r_val = jerry_object_get(js_color, jerry_string_sz("red"));
-    jerry_value_t g_val = jerry_object_get(js_color, jerry_string_sz("green"));
-    jerry_value_t b_val = jerry_object_get(js_color, jerry_string_sz("blue"));
-
-    uint8_t r = jerry_value_is_number(r_val) ? (uint8_t)jerry_value_as_number(r_val) : 0;
-    uint8_t g = jerry_value_is_number(g_val) ? (uint8_t)jerry_value_as_number(g_val) : 0;
-    uint8_t b = jerry_value_is_number(b_val) ? (uint8_t)jerry_value_as_number(b_val) : 0;
-
+    lv_color_t color = { 0 };
 #if LV_COLOR_DEPTH == 16
     lv_color16_t color16;
     color16.red = (r >> 3) & 0x1F;   // 5 bits
     color16.green = (g >> 2) & 0x3F; // 6 bits
     color16.blue = (b >> 3) & 0x1F;  // 5 bits
-    color = *(lv_color_t *)&color16;
+    color = *(lv_color_t*)&color16;
 #else
     color.red = r;
     color.green = g;
     color.blue = b;
 #endif
-
-    jerry_value_free(r_val);
-    jerry_value_free(g_val);
-    jerry_value_free(b_val);
-
     return color;
 }
+
+// 辅助函数：将hex值转换为lv_color_t
+static lv_color_t hex_to_lv_color(uint32_t hex)
+{
+    lv_color_t color = { 0 };
+    uint8_t r = (hex >> 16) & 0xFF;
+    uint8_t g = (hex >> 8) & 0xFF;
+    uint8_t b = hex & 0xFF;
+    return rgb_to_lv_color(r, g, b);
+}
+
+
+// 解析 lv_color_t 参数
+lv_color_t js_to_lv_color(jerry_value_t js_color)
+{
+    lv_color_t color = { 0 };
+
+    // 1. 处理数字输入（直接作为hex值）
+    if (jerry_value_is_number(js_color)) {
+        uint32_t hex = (uint32_t)jerry_value_as_number(js_color);
+        return hex_to_lv_color(hex);
+    }
+
+    // 2. 处理对象输入
+    if (jerry_value_is_object(js_color)) {
+        // 优先检查hex属性
+        jerry_value_t hex_val = jerry_object_get(js_color, jerry_string_sz("hex"));
+        if (jerry_value_is_number(hex_val)) {
+            uint32_t hex = (uint32_t)jerry_value_as_number(hex_val);
+            jerry_value_free(hex_val);
+            return hex_to_lv_color(hex);
+        }
+        jerry_value_free(hex_val);
+
+        // 其次检查rgb属性
+        jerry_value_t r_val = jerry_object_get(js_color, jerry_string_sz("r"));
+        jerry_value_t g_val = jerry_object_get(js_color, jerry_string_sz("g"));
+        jerry_value_t b_val = jerry_object_get(js_color, jerry_string_sz("b"));
+
+        uint8_t r = jerry_value_is_number(r_val) ? (uint8_t)jerry_value_as_number(r_val) : 0;
+        uint8_t g = jerry_value_is_number(g_val) ? (uint8_t)jerry_value_as_number(g_val) : 0;
+        uint8_t b = jerry_value_is_number(b_val) ? (uint8_t)jerry_value_as_number(b_val) : 0;
+
+        jerry_value_free(r_val);
+        jerry_value_free(g_val);
+        jerry_value_free(b_val);
+
+        return rgb_to_lv_color(r, g, b);
+    }
+
+    // 3. 默认返回黑色
+    return color;
+}
+
+
 
 jerry_value_t lv_color_to_js(lv_color_t color)
 {
     jerry_value_t js_color = jerry_object();
 
+    // 获取8位RGB值
     uint8_t r, g, b;
-
 #if LV_COLOR_DEPTH == 16
-    lv_color16_t color16 = *(lv_color16_t *)&color;
+    lv_color16_t color16 = *(lv_color16_t*)&color;
     r = (color16.red << 3) | (color16.red >> 2);     // 5 bits -> 8 bits
     g = (color16.green << 2) | (color16.green >> 4); // 6 bits -> 8 bits
     b = (color16.blue << 3) | (color16.blue >> 2);   // 5 bits -> 8 bits
@@ -88,12 +107,12 @@ jerry_value_t lv_color_to_js(lv_color_t color)
     b = color.blue;
 #endif
 
-    // 添加RGB分量
+    // 添加RGB分量（使用简短的属性名）
     jerry_object_set(js_color, jerry_string_sz("r"), jerry_number(r));
     jerry_object_set(js_color, jerry_string_sz("g"), jerry_number(g));
     jerry_object_set(js_color, jerry_string_sz("b"), jerry_number(b));
 
-    // 添加十六进制颜色值
+    // 添加十六进制颜色值（主要使用这个属性）
     uint32_t hex = (r << 16) | (g << 8) | b;
     jerry_object_set(js_color, jerry_string_sz("hex"), jerry_number(hex));
 
