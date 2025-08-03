@@ -9,10 +9,13 @@ import fnmatch
 script_dir = os.path.dirname(os.path.abspath(__file__))
 input_json_path = '../LvglPlatform/lvgl/scripts/gen_json/output/lvgl.json'
 output_c_path = 'output/lv_bindings.c'
+
+configuration_path = ''
 export_functions_path = os.path.join(script_dir, "export_functions.txt")
 blacklist_functions_path = os.path.join(script_dir, "blacklist_functions.txt")
 export_macros_path = os.path.join(script_dir, "export_macros.txt") 
 blacklist_macros_path = os.path.join(script_dir, "blacklist_macros.txt")
+
 extract_funcs_from = None
 print_all_info = False
 print_macro_info = False
@@ -1309,4 +1312,10 @@ if __name__ == "__main__":
             output_c_path = arg.split('=', 1)[1]
         elif arg.startswith('--extract-funcs-from='):
             extract_funcs_from = arg.split('=', 1)[1]
+        elif arg.startswith('--cfg-path='):
+            configuration_path = arg.split('=', 1)[1]
+            export_functions_path = os.path.join(script_dir, configuration_path+"./export_functions.txt")
+            blacklist_functions_path = os.path.join(script_dir, configuration_path+"./blacklist_functions.txt")
+            export_macros_path = os.path.join(script_dir, configuration_path+"./export_macros.txt") 
+            blacklist_macros_path = os.path.join(script_dir, configuration_path+"./blacklist_macros.txt")
     main()
