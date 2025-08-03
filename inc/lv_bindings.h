@@ -16,10 +16,7 @@ extern "C" {
 #include <stdbool.h>
 #include "jerryscript.h"
 // 类型声明
-typedef struct {
-    const char* name;
-    jerry_external_handler_t handler;
-} LVBindingJerryscriptFuncEntry;
+
 // 函数声明
 void lv_binding_init();
 

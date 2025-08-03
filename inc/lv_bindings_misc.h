@@ -17,11 +17,17 @@ extern "C" {
 #include "lvgl.h"
 #include "jerryscript.h"
 // 类型声明
-
+typedef struct {
+    const char* name;
+    jerry_external_handler_t handler;
+} LVBindingJerryscriptFuncEntry;
 // 函数声明
 void lv_bindings_misc_init();
 lv_color_t js_to_lv_color(jerry_value_t js_color);
 jerry_value_t lv_color_to_js(lv_color_t color);
+
+void lv_binding_jerryscript_register_functions(const LVBindingJerryscriptFuncEntry* entry,const size_t funcs_count);
+
 #ifdef __cplusplus
 }
 #endif

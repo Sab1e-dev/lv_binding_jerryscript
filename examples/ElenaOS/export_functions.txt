@@ -84,3 +84,4 @@ lv_style_init
 lv_style_set_text_color
 lv_color_hex
 lv_obj_add_style
+lv_disp_get_scr_act
