@@ -7,8 +7,8 @@ import fnmatch
 
 # 配置路径
 script_dir = os.path.dirname(os.path.abspath(__file__))
-input_json_path = '../LvglPlatform/lvgl/scripts/gen_json/output/lvgl.json'
-output_c_path = 'output/lv_bindings.c'
+input_json_file = '../LvglPlatform/lvgl/scripts/gen_json/output/lvgl.json'
+output_c_file = 'src/lv_bindings.c'
 
 configuration_path = ''
 export_functions_path = os.path.join(script_dir, "export_functions.txt")
@@ -29,7 +29,7 @@ HEADER_CODE = r"""
  */
 // Application System header files
 #include "lv_bindings.h"
-#include "lv_bindings_special.h"
+#include "lv_bindings_misc.h"
 #include "appsys_core.h"
 // Third party header files
 #include "jerryscript.h"
@@ -258,7 +258,7 @@ INIT_FUNCTION_CODE = r"""
 void lv_binding_init() {
     lv_obj_add_event_cb(lv_scr_act(), lv_obj_deleted_cb, LV_EVENT_DELETE, NULL);
     appsys_register_functions(lvgl_binding_funcs, sizeof(lvgl_binding_funcs) / sizeof(AppSysFuncEntry));
-    lv_bindings_special_init();
+    lv_bindings_misc_init();
     register_lvgl_enums();
 }
 """
@@ -679,64 +679,6 @@ def generate_arg_parsing(index, name, arg_type, type_info, typedefs_data):
     # 11. 默认处理为通用指针
     return generate_generic_pointer_arg_parsing(index, var_name, type_str)
 
-def generate_void_pointer_return():
-    """生成void指针返回值的处理代码"""
-    return """    // 包装为通用指针对象
-    jerry_value_t js_ret_obj = jerry_object();  // 修改变量名为js_ret_obj避免冲突
-    jerry_value_t ptr = jerry_number((double)(uintptr_t)ret_value);
-    
-    jerry_object_set(js_ret_obj, jerry_string_sz("__ptr"), ptr);
-    jerry_object_set(js_ret_obj, jerry_string_sz("__type"), jerry_string_sz("void*"));
-    
-    jerry_value_free(ptr);
-    return js_ret_obj;
-"""
-
-def generate_generic_pointer_return():
-    """生成通用指针返回值的处理代码"""
-    return """    // 包装为通用指针对象
-    jerry_value_t js_ret_obj = jerry_object();  // 修改变量名为js_ret_obj避免冲突
-    jerry_value_t ptr = jerry_number((double)(uintptr_t)ret_value);
-    
-    jerry_object_set(js_ret_obj, jerry_string_sz("__ptr"), ptr);
-    
-    jerry_value_free(ptr);
-    return js_ret_obj;
-"""
-
-def generate_object_return():
-    """生成对象返回值的处理代码"""
-    return """    // 包装为LVGL对象
-    jerry_value_t js_ret_obj = jerry_object();  // 修改变量名为js_ret_obj避免冲突
-    jerry_value_t ptr = jerry_number((double)(uintptr_t)ret_value);
-    jerry_value_t cls = jerry_string_sz("lv_obj");
-    
-    jerry_object_set(js_ret_obj, jerry_string_sz("__ptr"), ptr);
-    jerry_object_set(js_ret_obj, jerry_string_sz("__class"), cls);
-    
-    jerry_value_free(ptr);
-    jerry_value_free(cls);
-    return js_ret_obj;
-"""
-
-def generate_string_return():
-    """生成字符串返回值的处理代码"""
-    return """    if (ret_value == NULL) {
-        return jerry_string_sz("");
-    }
-    return jerry_string_sz((const jerry_char_t*)ret_value);
-"""
-
-def generate_number_return():
-    """生成数字返回值的处理代码"""
-    return """    return jerry_number(ret_value);
-"""
-
-def generate_bool_return():
-    """生成布尔返回值的处理代码"""
-    return """    return jerry_boolean(ret_value);
-"""
-
 def find_real_function_definition(func_name, data):
     """
     查找函数的真实定义，处理宏定义的情况
@@ -836,7 +778,7 @@ def generate_binding_function(func, typedefs_data, export_functions):
     # 生成函数头
     code = f"""
 /**
- * {docstring}
+ * @brief {docstring}
  */
 static jerry_value_t js_{func_name}(const jerry_call_info_t* call_info_p,
     const jerry_value_t args[],
@@ -1102,6 +1044,8 @@ def generate_enum_binding(enums, macros=None, export_macros=None, blacklist_macr
     for enum in enums or []:
         if enum is None:
             continue
+        enum_name = enum.get('name')
+        lines.append(f"#if defined({enum_name})")
         for member in enum.get('members', []) or []:
             if member is None:
                 continue
@@ -1123,6 +1067,9 @@ def generate_enum_binding(enums, macros=None, export_macros=None, blacklist_macr
                 except (ValueError, TypeError) as e:
                     print(f"{Fore.YELLOW}[警告] 无法解析枚举值 {name}={value}: {e}{Style.RESET_ALL}")
                     continue
+        lines.append("#else")
+        lines.append(f'    #pragma "WARNING: Enum {enum_name} is not defined!"')
+        lines.append("#endif")
     
     if macros:
         # 特殊处理LV_SYMBOL_开头的宏（总是包含）
@@ -1148,12 +1095,20 @@ def generate_enum_binding(enums, macros=None, export_macros=None, blacklist_macr
                 
             # 特殊处理LV_SYMBOL_开头的宏
             if macro_name.startswith('LV_SYMBOL_'):
+                lines.append(f"#ifdef {macro_name}")
                 lines.append(f'    jerry_object_set(global, jerry_string_sz("{macro_name}"), jerry_string_sz({macro_name}));')
+                lines.append("#else")
+                lines.append(f'    #pragma "WARNING: Macro {macro_name} is not defined"')
+                lines.append("#endif")
                 continue
                 
             # 检查是否在导出列表中
             if is_function_matched(macro_name, export_macros):
+                lines.append(f"#ifdef {macro_name}")
                 lines.append(f'    lvgl_binding_set_enum(global, "{macro_name}", {macro_name});')
+                lines.append("#else")
+                lines.append(f'    #pragma "WARNING: Macro {macro_name} is not defined"')
+                lines.append("#endif")
             elif print_macro_info:
                 print(f"{Fore.BLUE}[跳过] 宏 {macro_name} 不在导出列表中{Style.RESET_ALL}")
     
@@ -1185,11 +1140,11 @@ def main():
                 print(f"{Fore.GREEN}[无需更新] 没有发现新的lvgl函数需要添加{Style.RESET_ALL}")
 
     # 从同级目录读取lvgl.json
-    if not os.path.exists(input_json_path):
-        print(f"{Fore.RED}[错误] 找不到输入文件: {input_json_path}{Style.RESET_ALL}")
+    if not os.path.exists(input_json_file):
+        print(f"{Fore.RED}[错误] 找不到输入文件: {input_json_file}{Style.RESET_ALL}")
         return
     
-    with open(input_json_path, 'r') as f:
+    with open(input_json_file, 'r') as f:
         data = json.load(f)
     
     # 生成绑定函数
@@ -1202,6 +1157,7 @@ def main():
     # 收集所有需要导出的函数（匹配白名单且不在黑名单中的函数）
     exported_funcs = []
     matched_funcs = set()
+    missing_funcs = set(EXPORT_FUNCTION_PATTERNS)  # 初始化包含所有导出模式
     
     # 1. 首先处理所有函数
     for func in data.get('functions', []):
@@ -1211,18 +1167,17 @@ def main():
             
         # 检查是否在导出模式中
         if not is_function_matched(func_name, EXPORT_FUNCTION_PATTERNS):
-            # if print_all_info:
-                # print(f"{Fore.BLUE}[跳过] 函数 {func_name} 不在导出模式中{Style.RESET_ALL}")
             continue
             
         # 检查是否在黑名单中
         if is_function_matched(func_name, BLACKLIST_FUNCTION_PATTERNS):
             print(f"{Fore.RED}[黑名单] 跳过函数 {func_name}{Style.RESET_ALL}")
+            missing_funcs.discard(func_name)
             continue
             
         exported_funcs.append(func)
         matched_funcs.add(func_name)
-        print(f"{Fore.GREEN}[匹配] 找到函数 {func_name}{Style.RESET_ALL}")
+        missing_funcs.discard(func_name)  # 从缺失列表中移除
 
     # 2. 处理宏定义（作为函数导出）
     for macro in data.get('macros', []):
@@ -1232,13 +1187,12 @@ def main():
             
         # 检查是否在导出模式中
         if not is_function_matched(macro_name, EXPORT_FUNCTION_PATTERNS):
-            # if print_all_info:
-                # print(f"{Fore.BLUE}[跳过] 宏 {macro_name} 不在导出模式中{Style.RESET_ALL}")
             continue
             
         # 检查是否在黑名单中
         if is_function_matched(macro_name, BLACKLIST_FUNCTION_PATTERNS):
             print(f"{Fore.RED}[黑名单] 跳过宏 {macro_name}{Style.RESET_ALL}")
+            missing_funcs.discard(macro_name)
             continue
             
         # 检查是否有initializer（函数型宏）
@@ -1252,9 +1206,16 @@ def main():
             }
             exported_funcs.append(pseudo_func)
             matched_funcs.add(macro_name)
-            print(f"{Fore.GREEN}[匹配] 找到宏函数 {macro_name}{Style.RESET_ALL}")
+            missing_funcs.discard(macro_name)
         else:
             print(f"{Fore.YELLOW}[警告] 宏 {macro_name} 没有initializer，无法作为函数处理{Style.RESET_ALL}")
+            missing_funcs.discard(macro_name)
+
+    # 打印未生成的函数
+    if missing_funcs:
+        print(f"\n{Fore.YELLOW}[警告] 以下函数在export_functions.txt中指定但未生成:{Style.RESET_ALL}")
+        for func in sorted(missing_funcs):
+            print(f"  - {func} (未在lvgl.json中找到定义)")
 
     if not exported_funcs:
         print(f"{Fore.RED}[错误] 没有找到匹配的导出函数，请检查 export_functions.txt 文件。匹配模式: {EXPORT_FUNCTION_PATTERNS}{Style.RESET_ALL}")
@@ -1299,17 +1260,22 @@ def main():
     )
     
     # 输出到.c文件
-    os.makedirs(os.path.dirname(output_c_path), exist_ok=True)
-    with open(output_c_path, "w", encoding="utf-8") as f:
+    os.makedirs(os.path.dirname(output_c_file), exist_ok=True)
+    with open(output_c_file, "w", encoding="utf-8") as f:
         f.write(output)
-    print(f"{Fore.GREEN}✅ 生成C代码已写入: {output_c_path}{Style.RESET_ALL}")
+    print(f"{Fore.GREEN}✅ 生成C代码已写入: {output_c_file}{Style.RESET_ALL}")
 
 if __name__ == "__main__":
     for arg in sys.argv:
-        if arg.startswith('--json-path='):
-            input_json_path = arg.split('=', 1)[1]
+        if arg.startswith('--json-file='):
+            try:
+                input_json_file = arg.split('=', 1)[1]
+            except:
+                print("{Fore.RED}[错误] lvgl.json文件不存在。")
+                exit()
         elif arg.startswith('--output-c-path='):
-            output_c_path = arg.split('=', 1)[1]
+            output_c_file = arg.split('=', 1)[1]
+            output_c_file = output_c_file+"./lv_bindings.c"
         elif arg.startswith('--extract-funcs-from='):
             extract_funcs_from = arg.split('=', 1)[1]
         elif arg.startswith('--cfg-path='):
