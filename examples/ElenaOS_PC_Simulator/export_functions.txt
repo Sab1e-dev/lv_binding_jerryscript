@@ -83,3 +83,4 @@ lv_timer_handler
 lv_color_hex
 lv_style_init
 lv_style_set_text_color
+lv_disp_get_scr_act
