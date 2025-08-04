@@ -343,13 +343,13 @@ static void register_lvgl_fonts(void)
 }
 /********************************** 绑定注册 **********************************/
 
-const LVBindingJerryscriptFuncEntry lvgl_binding_special_funcs[] = {
+const LVBindingJerryscriptFuncEntry_t lvgl_binding_special_funcs[] = {
     {"lv_img_set_src", js_lv_img_set_src},
     {"lv_style_init", js_lv_style_init},
     {"lv_style_delete", js_lv_style_delete}
 };
 
-void lv_binding_jerryscript_register_functions(const LVBindingJerryscriptFuncEntry* entry,const size_t funcs_count) {
+void lv_binding_jerryscript_register_functions(const LVBindingJerryscriptFuncEntry_t* entry,const size_t funcs_count) {
     jerry_value_t global = jerry_current_realm();
     for (size_t i = 0; i < funcs_count; ++i) {
         jerry_value_t fn = jerry_function_external(entry[i].handler);
@@ -364,6 +364,6 @@ void lv_binding_jerryscript_register_functions(const LVBindingJerryscriptFuncEnt
 void lv_bindings_misc_init(void)
 {
     // 初始化函数
-    lv_binding_jerryscript_register_functions(lvgl_binding_special_funcs, sizeof(lvgl_binding_special_funcs) / sizeof(LVBindingJerryscriptFuncEntry));
+    lv_binding_jerryscript_register_functions(lvgl_binding_special_funcs, sizeof(lvgl_binding_special_funcs) / sizeof(LVBindingJerryscriptFuncEntry_t));
     register_lvgl_fonts();
 }

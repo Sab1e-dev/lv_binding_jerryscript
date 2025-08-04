@@ -257,7 +257,7 @@ INIT_FUNCTION_CODE = r"""
  */
 void lv_binding_init() {
     lv_obj_add_event_cb(lv_scr_act(), lv_obj_deleted_cb, LV_EVENT_DELETE, NULL);
-    lv_binding_jerryscript_register_functions(lvgl_binding_funcs, sizeof(lvgl_binding_funcs) / sizeof(LVBindingJerryscriptFuncEntry));
+    lv_binding_jerryscript_register_functions(lvgl_binding_funcs, sizeof(lvgl_binding_funcs) / sizeof(LVBindingJerryscriptFuncEntry_t));
     lv_bindings_misc_init();
     register_lvgl_enums();
 }
@@ -921,7 +921,7 @@ def generate_native_funcs_list(functions):
     
     entries_str = ',\n'.join(entries)
     return f"""
-const LVBindingJerryscriptFuncEntry lvgl_binding_funcs[] = {{
+const LVBindingJerryscriptFuncEntry_t lvgl_binding_funcs[] = {{
 {entries_str}
 }};
 
