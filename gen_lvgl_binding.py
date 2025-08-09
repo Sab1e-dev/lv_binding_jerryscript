@@ -30,10 +30,10 @@ HEADER_CODE = r"""
 // Application System header files
 #include "lv_bindings.h"
 #include "lv_bindings_misc.h"
-#include "appsys_core.h"
+#include "script_engine_core.h"
 // Third party header files
 #include "jerryscript.h"
-#include "lvgl/lvgl.h"
+#include "lvgl.h"
 #include <stdlib.h>
 #include <string.h>
 
