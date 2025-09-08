@@ -267,13 +267,13 @@ lv_color_t js_to_lv_color(jerry_value_t js_color)
 {
     lv_color_t color = {0}; // 初始化为黑色
 
-    // 1. 处理undefined/null
+    // 处理undefined/null
     if (jerry_value_is_undefined(js_color) || jerry_value_is_null(js_color))
     {
         return color;
     }
 
-    // 2. 获取RGB值
+    // 获取RGB值
     uint8_t r = 0, g = 0, b = 0;
 
     // 处理数字输入（直接作为hex值）
@@ -318,7 +318,7 @@ lv_color_t js_to_lv_color(jerry_value_t js_color)
         }
     }
 
-    // 3. 填充颜色结构体（注意顺序：blue, green, red）
+    // 填充颜色结构体（注意顺序：blue, green, red）
     color.blue = b;
     color.green = g;
     color.red = r;
@@ -361,13 +361,13 @@ static jerry_value_t js_lv_style_init(const jerry_call_info_t *call_info_p,
         return throw_error("Insufficient arguments");
     }
 
-    // 1. 检查参数是否为对象
+    // 检查参数是否为对象
     if (!jerry_value_is_object(args[0]))
     {
         return throw_error("Argument must be a style object");
     }
 
-    // 2. 检查对象是否已经分配了内存
+    // 检查对象是否已经分配了内存
     jerry_value_t ptr_prop = jerry_string_sz("__ptr");
     jerry_value_t ptr_val = jerry_object_get(args[0], ptr_prop);
     jerry_value_free(ptr_prop);
@@ -405,10 +405,10 @@ static jerry_value_t js_lv_style_init(const jerry_call_info_t *call_info_p,
         jerry_value_free(type_val);
     }
 
-    // 3. 调用初始化函数
+    // 调用初始化函数
     lv_style_init(style);
 
-    // 4. 返回JS对象本身，支持链式调用
+    // 返回JS对象本身，支持链式调用
     return jerry_value_copy(args[0]);
 }
 /**
@@ -442,66 +442,6 @@ static jerry_value_t js_lv_style_delete(const jerry_call_info_t *call_info_p,
     return jerry_undefined();
 }
 
-/**
- * @brief Set image source with string path support
- */
-static jerry_value_t js_lv_img_set_src(const jerry_call_info_t *info,
-                                       const jerry_value_t args[],
-                                       const jerry_length_t argc)
-{
-    // 参数检查
-    if (argc < 2)
-    {
-        return throw_error("需要2个参数：图像对象和路径");
-    }
-
-    // 解析图像对象
-    jerry_value_t js_img = args[0];
-    if (!jerry_value_is_object(js_img))
-    {
-        return throw_error("第一个参数必须是图像对象");
-    }
-
-    // 获取LVGL对象指针
-    jerry_value_t ptr_prop = jerry_string_sz("__ptr");
-    jerry_value_t ptr_val = jerry_object_get(js_img, ptr_prop);
-    jerry_value_free(ptr_prop);
-
-    if (!jerry_value_is_number(ptr_val))
-    {
-        jerry_value_free(ptr_val);
-        return throw_error("无效的图像对象指针");
-    }
-
-    lv_obj_t *img = (lv_obj_t *)(uintptr_t)jerry_value_as_number(ptr_val);
-    jerry_value_free(ptr_val);
-
-    // 检查路径参数
-    jerry_value_t js_path = args[1];
-    if (!jerry_value_is_string(js_path))
-    {
-        return throw_error("第二个参数必须是字符串路径");
-    }
-
-    // 转换路径字符串
-    jerry_size_t len = jerry_string_length(js_path);
-    char *path = (char *)malloc(len + 1);
-    jerry_string_to_buffer(js_path, JERRY_ENCODING_UTF8, (jerry_char_t *)path, len);
-    path[len] = '\0';
-
-    // Windows路径处理：统一使用反斜杠
-    for (char *p = path; *p; p++)
-    {
-        if (*p == '/')
-            *p = '\\';
-    }
-
-    // 调用LVGL函数（关键修改点）
-    lv_img_set_src(img, path);
-    free(path);
-
-    return jerry_undefined();
-}
 /********************************** 字体系统 **********************************/
 static void register_lvgl_fonts(void)
 {
@@ -596,7 +536,6 @@ static void register_lvgl_fonts(void)
 const LVBindingJerryscriptFuncEntry_t lvgl_binding_special_funcs[] = {
     {"register_lv_event_handler", register_lv_event_handler},
     {"unregister_lv_event_handler", unregister_lv_event_handler},
-    {"lv_img_set_src", js_lv_img_set_src},
     {"lv_style_init", js_lv_style_init},
     {"lv_style_delete", js_lv_style_delete}};
 
