@@ -3,7 +3,7 @@
  * @file lv_bindings_misc.c
  * @brief 模块功能说明
  * @author Sab1e
- * @date
+ * @date 2025-8-10
  */
 
 #include "lv_bindings_misc.h"
@@ -257,6 +257,239 @@ static void lv_obj_deleted_cb(lv_event_t *e)
             free(cur);
         }
     }
+}
+
+/********************************** 定时器系统 **********************************/
+
+// 定时器数据结构
+typedef struct {
+    lv_timer_t* timer;
+    jerry_value_t js_cb;
+    jerry_value_t user_data;
+} timer_js_data_t;
+
+/**
+ * @brief LVGL 定时器回调包装函数
+ * @param timer LVGL 定时器对象
+ */     
+static void lv_timer_js_cb(lv_timer_t* timer) {
+    timer_js_data_t* data = (timer_js_data_t*)lv_timer_get_user_data(timer);
+    
+    if (data && !jerry_value_is_undefined(data->js_cb)) {
+        jerry_value_t global = jerry_current_realm();
+        jerry_value_t args[1] = { data->user_data };
+        
+        jerry_value_t ret = jerry_call(data->js_cb, global, args, 1);
+        if (jerry_value_is_error(ret)) {
+            
+        }
+        jerry_value_free(ret);
+        jerry_value_free(global);
+    }
+}
+
+/**
+ * @brief 创建 LVGL 定时器
+ * @param args[0] JavaScript 函数作为定时器回调
+ * @param args[1] 定时器周期（毫秒）
+ * @param args[2] （可选）用户数据
+ * @return 定时器对象或抛出异常
+ */
+static jerry_value_t js_lv_timer_create(const jerry_call_info_t* call_info_p,
+                                        const jerry_value_t args[],
+                                        const jerry_length_t arg_cnt) {
+    if (arg_cnt < 2 || !jerry_value_is_function(args[0]) || !jerry_value_is_number(args[1])) {
+        return throw_error("Invalid arguments");
+    }
+
+    // 获取定时器周期
+    uint32_t period = (uint32_t)jerry_value_as_number(args[1]);
+    
+    // 准备用户数据
+    jerry_value_t user_data = jerry_undefined();
+    if (arg_cnt >= 3) {
+        user_data = jerry_value_copy(args[2]);
+    }
+    
+    // 创建 JavaScript 回调的副本
+    jerry_value_t js_cb = jerry_value_copy(args[0]);
+    
+    // 创建定时器数据结构
+    timer_js_data_t* timer_data = (timer_js_data_t*)malloc(sizeof(timer_js_data_t));
+    if (!timer_data) {
+        jerry_value_free(js_cb);
+        jerry_value_free(user_data);
+        return throw_error("Failed to allocate memory for timer data");
+    }
+    
+    timer_data->js_cb = js_cb;
+    timer_data->user_data = user_data;
+    
+    // 创建 LVGL 定时器
+    lv_timer_t* timer = lv_timer_create(lv_timer_js_cb, period, timer_data);
+    if (!timer) {
+        free(timer_data);
+        return throw_error("Failed to create timer");
+    }
+    
+    timer_data->timer = timer;
+    
+    // 创建 JavaScript 定时器对象
+    jerry_value_t js_timer = jerry_object();
+    
+    // 添加指针属性
+    jerry_value_t ptr_prop = jerry_string_sz("__ptr");
+    jerry_value_t ptr_val = jerry_number((uintptr_t)timer);
+    jerry_object_set(js_timer, ptr_prop, ptr_val);
+    jerry_value_free(ptr_prop);
+    jerry_value_free(ptr_val);
+    
+    // 添加类型标记
+    jerry_value_t type_prop = jerry_string_sz("__type");
+    jerry_value_t type_val = jerry_string_sz("lv_timer");
+    jerry_object_set(js_timer, type_prop, type_val);
+    jerry_value_free(type_prop);
+    jerry_value_free(type_val);
+    
+    return js_timer;
+}
+
+/**
+ * @brief 删除 LVGL 定时器
+ * @param args[0] 定时器对象
+ * @return 无返回或抛出异常
+ */
+static jerry_value_t js_lv_timer_delete(const jerry_call_info_t* call_info_p,
+                                       const jerry_value_t args[],
+                                       const jerry_length_t arg_cnt) {
+    if (arg_cnt < 1 || !jerry_value_is_object(args[0])) {
+        return throw_error("Invalid arguments");
+    }
+    
+    // 获取定时器指针
+    jerry_value_t ptr_prop = jerry_string_sz("__ptr");
+    jerry_value_t ptr_val = jerry_object_get(args[0], ptr_prop);
+    jerry_value_free(ptr_prop);
+    
+    if (!jerry_value_is_number(ptr_val)) {
+        jerry_value_free(ptr_val);
+        return throw_error("Invalid timer object");
+    }
+    
+    lv_timer_t* timer = (lv_timer_t*)(uintptr_t)jerry_value_as_number(ptr_val);
+    jerry_value_free(ptr_val);
+    
+    // 获取定时器数据
+    timer_js_data_t* timer_data = (timer_js_data_t*)lv_timer_get_user_data(timer);
+    
+    // 释放 JavaScript 资源
+    if (timer_data) {
+        jerry_value_free(timer_data->js_cb);
+        jerry_value_free(timer_data->user_data);
+        free(timer_data);
+    }
+    
+    // 删除定时器
+    lv_timer_del(timer);
+    
+    return jerry_undefined();
+}
+
+/**
+ * @brief 设置定时器周期
+ * @param args[0] 定时器对象
+ * @param args[1] 新的周期（毫秒）
+ * @return 无返回或抛出异常
+ */
+static jerry_value_t js_lv_timer_set_period(const jerry_call_info_t* call_info_p,
+                                           const jerry_value_t args[],
+                                           const jerry_length_t arg_cnt) {
+    if (arg_cnt < 2 || !jerry_value_is_object(args[0]) || !jerry_value_is_number(args[1])) {
+        return throw_error("Invalid arguments");
+    }
+    
+    // 获取定时器指针
+    jerry_value_t ptr_prop = jerry_string_sz("__ptr");
+    jerry_value_t ptr_val = jerry_object_get(args[0], ptr_prop);
+    jerry_value_free(ptr_prop);
+    
+    if (!jerry_value_is_number(ptr_val)) {
+        jerry_value_free(ptr_val);
+        return throw_error("Invalid timer object");
+    }
+    
+    lv_timer_t* timer = (lv_timer_t*)(uintptr_t)jerry_value_as_number(ptr_val);
+    jerry_value_free(ptr_val);
+    
+    // 设置定时器周期
+    uint32_t period = (uint32_t)jerry_value_as_number(args[1]);
+    lv_timer_set_period(timer, period);
+    
+    return jerry_undefined();
+}
+
+/**
+ * @brief 设置定时器重复次数
+ * @param args[0] 定时器对象
+ * @param args[1] 重复次数（-1表示无限重复）
+ * @return 无返回或抛出异常
+ */
+static jerry_value_t js_lv_timer_set_repeat_count(const jerry_call_info_t* call_info_p,
+                                                 const jerry_value_t args[],
+                                                 const jerry_length_t arg_cnt) {
+    if (arg_cnt < 2 || !jerry_value_is_object(args[0]) || !jerry_value_is_number(args[1])) {
+        return throw_error("Invalid arguments");
+    }
+    
+    // 获取定时器指针
+    jerry_value_t ptr_prop = jerry_string_sz("__ptr");
+    jerry_value_t ptr_val = jerry_object_get(args[0], ptr_prop);
+    jerry_value_free(ptr_prop);
+    
+    if (!jerry_value_is_number(ptr_val)) {
+        jerry_value_free(ptr_val);
+        return throw_error("Invalid timer object");
+    }
+    
+    lv_timer_t* timer = (lv_timer_t*)(uintptr_t)jerry_value_as_number(ptr_val);
+    jerry_value_free(ptr_val);
+    
+    // 设置定时器重复次数
+    int32_t repeat_count = (int32_t)jerry_value_as_number(args[1]);
+    lv_timer_set_repeat_count(timer, repeat_count);
+    
+    return jerry_undefined();
+}
+
+/**
+ * @brief 重置定时器
+ * @param args[0] 定时器对象
+ * @return 无返回或抛出异常
+ */
+static jerry_value_t js_lv_timer_reset(const jerry_call_info_t* call_info_p,
+                                      const jerry_value_t args[],
+                                      const jerry_length_t arg_cnt) {
+    if (arg_cnt < 1 || !jerry_value_is_object(args[0])) {
+        return throw_error("Invalid arguments");
+    }
+    
+    // 获取定时器指针
+    jerry_value_t ptr_prop = jerry_string_sz("__ptr");
+    jerry_value_t ptr_val = jerry_object_get(args[0], ptr_prop);
+    jerry_value_free(ptr_prop);
+    
+    if (!jerry_value_is_number(ptr_val)) {
+        jerry_value_free(ptr_val);
+        return throw_error("Invalid timer object");
+    }
+    
+    lv_timer_t* timer = (lv_timer_t*)(uintptr_t)jerry_value_as_number(ptr_val);
+    jerry_value_free(ptr_val);
+    
+    // 重置定时器
+    lv_timer_reset(timer);
+    
+    return jerry_undefined();
 }
 
 /********************************** 色彩转换函数 **********************************/
@@ -537,7 +770,12 @@ const LVBindingJerryscriptFuncEntry_t lvgl_binding_special_funcs[] = {
     {"register_lv_event_handler", register_lv_event_handler},
     {"unregister_lv_event_handler", unregister_lv_event_handler},
     {"lv_style_init", js_lv_style_init},
-    {"lv_style_delete", js_lv_style_delete}};
+    {"lv_style_delete", js_lv_style_delete},
+    {"lv_timer_create", js_lv_timer_create},
+    {"lv_timer_delete", js_lv_timer_delete},
+    {"lv_timer_set_period", js_lv_timer_set_period},
+    {"lv_timer_set_repeat_count", js_lv_timer_set_repeat_count},
+    {"lv_timer_reset", js_lv_timer_reset}};
 
 void lv_binding_jerryscript_register_functions(const LVBindingJerryscriptFuncEntry_t *entry, const size_t funcs_count)
 {
